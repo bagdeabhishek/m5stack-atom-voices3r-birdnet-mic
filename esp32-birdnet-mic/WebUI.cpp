@@ -130,6 +130,7 @@ extern const char* FW_BOARD_ID_STR;
 extern const char* FW_BOARD_NAME_STR;
 extern const char* FW_CHIP_FAMILY_STR;
 extern const char* FW_OTA_ARTIFACT_STR;
+extern const char* TEMPERATURE_SENSOR_PROFILE_STR;
 extern bool timeSynced;
 extern unsigned long lastTimeSyncSuccess;
 extern int32_t timeOffsetMinutes;
@@ -954,7 +955,7 @@ static void httpThermal() {
     }
     bool manualRequired = overheatLatched || (!rtspServerEnabled && overheatProtectionEnabled && overheatTripTemp > 0.0f);
     String json = "{";
-    json.reserve(520);
+    json.reserve(580);
     if (lastTemperatureValid) {
         json += "\"current_c\":" + String(lastTemperatureC,1) + ",";
     } else {
@@ -962,6 +963,7 @@ static void httpThermal() {
     }
     json += "\"current_valid\":" + String(lastTemperatureValid?"true":"false") + ",";
     json += "\"max_c\":" + String(maxTemperature,1) + ",";
+    json += "\"sensor_profile\":\"" + jsonEscape(String(TEMPERATURE_SENSOR_PROFILE_STR)) + "\",";
     json += "\"cpu_mhz\":" + String(getCpuFrequencyMhz()) + ",";
     json += "\"protection_enabled\":" + String(overheatProtectionEnabled?"true":"false") + ",";
     json += "\"shutdown_c\":" + String(overheatShutdownC,0) + ",";

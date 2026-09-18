@@ -2,6 +2,9 @@
 #include <esp_wifi.h>
 #include <WiFiManager.h>
 #include "driver/i2s_std.h"
+#if defined(M5STACK_ATOM_VOICES3R)
+#include "driver/temperature_sensor.h"
+#endif
 #include <ArduinoOTA.h>
 #include <Preferences.h>
 #include <ESPmDNS.h>
@@ -69,6 +72,12 @@ const char* FW_BOARD_ID_STR = XIAO_BOARD_ID;
 const char* FW_BOARD_NAME_STR = XIAO_BOARD_NAME;
 const char* FW_CHIP_FAMILY_STR = XIAO_CHIP_FAMILY;
 const char* FW_OTA_ARTIFACT_STR = XIAO_OTA_ARTIFACT;
+
+#if defined(M5STACK_ATOM_VOICES3R)
+const char* TEMPERATURE_SENSOR_PROFILE_STR = "esp-idf-20-100c";
+#else
+const char* TEMPERATURE_SENSOR_PROFILE_STR = "arduino-default";
+#endif
 
 // Time / NTP
 const char* NTP_SERVER_1 = "pool.ntp.org";
@@ -314,6 +323,11 @@ float maxTemperature = 0.0f;
 float lastTemperatureC = 0.0f;
 bool lastTemperatureValid = false;
 bool overheatProtectionEnabled = DEFAULT_OVERHEAT_PROTECTION;
+#if defined(M5STACK_ATOM_VOICES3R)
+static temperature_sensor_handle_t voiceS3RTemperatureSensor = nullptr;
+static bool voiceS3RTemperatureSensorInitAttempted = false;
+#endif
+
 float overheatShutdownC = (float)DEFAULT_OVERHEAT_LIMIT_C;
 bool overheatLockoutActive = false;
 uint8_t overheatConsecutiveSamples = 0;
@@ -1755,6 +1769,47 @@ void checkTimeSync() {
     }
 }
 
+static float readInternalTemperatureC() {
+#if defined(M5STACK_ATOM_VOICES3R)
+    if (!voiceS3RTemperatureSensorInitAttempted) {
+        voiceS3RTemperatureSensorInitAttempted = true;
+
+        // Arduino-ESP32 temperatureRead() requests a 10-50 C expected range.
+        // Thermal protection on this board needs calibrated coverage through
+        // the 80 C shutdown point, so use ESP-IDF's 20-100 C range directly.
+        temperature_sensor_config_t config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
+        esp_err_t err = temperature_sensor_install(&config, &voiceS3RTemperatureSensor);
+        if (err != ESP_OK) {
+            voiceS3RTemperatureSensor = nullptr;
+            simplePrintln("Temperature sensor install failed: " + String(esp_err_to_name(err)));
+            return NAN;
+        }
+
+        err = temperature_sensor_enable(voiceS3RTemperatureSensor);
+        if (err != ESP_OK) {
+            simplePrintln("Temperature sensor enable failed: " + String(esp_err_to_name(err)));
+            temperature_sensor_uninstall(voiceS3RTemperatureSensor);
+            voiceS3RTemperatureSensor = nullptr;
+            return NAN;
+        }
+
+        simplePrintln("Temperature sensor ready: ESP-IDF calibrated range 20-100 C");
+    }
+
+    if (!voiceS3RTemperatureSensor) return NAN;
+
+    float temperatureC = NAN;
+    esp_err_t err = temperature_sensor_get_celsius(voiceS3RTemperatureSensor, &temperatureC);
+    if (err != ESP_OK) {
+        simplePrintln("Temperature sensor read failed: " + String(esp_err_to_name(err)));
+        return NAN;
+    }
+    return temperatureC;
+#else
+    return temperatureRead();
+#endif
+}
+
 static bool isTemperatureValid(float temp) {
     if (isnan(temp) || isinf(temp)) return false;
     if (temp < -20.0f || temp > 130.0f) return false;
@@ -1786,7 +1841,7 @@ void recordOverheatTrip(float temp) {
 
 // Temperature monitoring + thermal protection
 void checkTemperature() {
-    float temp = temperatureRead(); // ESP32 internal sensor (approximate)
+    float temp = readInternalTemperatureC();
     bool tempValid = isTemperatureValid(temp);
     if (!tempValid) {
         overheatConsecutiveSamples = 0;
@@ -3331,7 +3386,7 @@ void setup() {
     lastPerformanceCheck = millis();
     lastWiFiCheck = millis();
     minFreeHeap = ESP.getFreeHeap();
-    float initialTemp = temperatureRead();
+    float initialTemp = readInternalTemperatureC();
     if (isTemperatureValid(initialTemp)) {
         maxTemperature = initialTemp;
         lastTemperatureC = initialTemp;

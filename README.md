@@ -130,11 +130,10 @@ high-frequency bandwidth.
 The temperature shown in the Web UI is the ESP32-S3's internal sensor—not ambient air temperature.
 It will read significantly warmer than the room while the CPU and radio are active.
 
-There is also an accuracy limitation in the current firmware stack: Arduino's `temperatureRead()`
-requests a 10–50 °C expected range when it initializes the ESP32-S3 sensor. Values above the
-driver-selected calibrated range should be treated as a strong overheating trend, not a
-laboratory-accurate case or ambient temperature. This does not make a 90 °C report harmless, but it
-does mean the absolute number may be off by several degrees.
+This fork bypasses Arduino's default 10–50 °C temperature configuration on the VoiceS3R and uses
+the ESP-IDF **20–100 °C calibrated range**, which covers the firmware's 80 °C shutdown point.
+The thermal API reports this as `sensor_profile: "esp-idf-20-100c"`. The reading is still the
+temperature inside the ESP32-S3, not the enclosure or outside air.
 
 This firmware is a demanding thermal workload because it continuously captures audio, packetizes
 RTSP, keeps Wi-Fi awake with `WiFi.setSleep(false)`, and streams without idle periods. Weak Wi-Fi

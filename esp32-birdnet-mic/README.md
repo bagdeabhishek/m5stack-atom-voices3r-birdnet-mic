@@ -249,6 +249,9 @@ GPIO3/GPIO14 block in `setup()`.
 - XIAO ESP32-C3/S3/C5 antenna path: no firmware GPIO switching
 - OTA password: none in the default public build
 
+On VoiceS3R, thermal monitoring uses the ESP-IDF 20-100 C calibrated sensor range instead of
+Arduino's default 10-50 C expected range. `/api/thermal` reports `sensor_profile` for verification.
+
 The sample-rate setting accepts 8,000-192,000 Hz. 192 kHz is allowed by the UI/API for users who
 want to test ultrasonic-capable microphones, but bandwidth, CPU load, I2S stability, and BirdNET
 backend support should be verified on the target setup.
