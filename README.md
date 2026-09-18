@@ -1,236 +1,232 @@
 <p align="center">
-  <img src="assets/birdlogo.png" alt="ESP32 RTSP Mic for BirdNET-Go / BirdNET-Pi" width="260" />
+  <img src="assets/birdlogo.png" alt="BirdNET microphone" width="240">
 </p>
 
-# birdnet-esp32-rtsp-mic
+# M5Stack Atom VoiceS3R microphone for BirdNET
 
-ESP32 network microphone for **BirdNET-Go** and **BirdNET-Pi**. It reads an I2S MEMS microphone
-and serves mono **16-bit PCM/L16** audio over **RTSP**. In addition to the original Seeed XIAO
-targets, the firmware supports the integrated microphone in the M5Stack Atom VoiceS3R (C126).
+Turn an **M5Stack Atom VoiceS3R / EchoS3R (C126)** into a compact Wi-Fi microphone for
+**BirdNET-Go** or **BirdNET-Pi**. The firmware captures the board's built-in MEMS microphone through
+its ES8311 codec and serves mono 16-bit PCM audio over RTSP.
 
-- Latest firmware: **v1.22** (2026-08-01)
-- Target sketch: `esp32-birdnet-mic`
-- Web flasher: **https://esp32mic.msmeteo.cz** (Chrome/Edge desktop, USB-C data cable)
-- Manual OTA firmware: `manual-ota-firmware/firmware-app-<board>.bin` (`firmware-app.bin` remains the C6 alias)
-- Detailed firmware docs: `esp32-birdnet-mic/README.md`
-- Changelog: `esp32-birdnet-mic/CHANGELOG.md`
-- License: MIT (`LICENSE`)
+No external microphone, soldering, or I2S wiring is required.
 
-## Quick Start
+> This is a board-specific fork of
+> [Sukecz/esp32-birdnet-mic](https://github.com/Sukecz/esp32-birdnet-mic). It exists because the
+> VoiceS3R requires its own ES8311 initialization and build target. The upstream web flasher and
+> automatic firmware downloads do **not** support this board; build and flash it with PlatformIO.
 
-1. Open **https://esp32mic.msmeteo.cz**.
-2. Click **Flash**, select the USB JTAG/serial device, and wait for reboot.
-3. On first boot, connect to Wi-Fi AP **ESP32-RTSP-Mic-AP**.
-4. Open `http://192.168.4.1` if the captive portal does not appear, then enter your Wi-Fi details.
-5. After reboot, open the device Web UI at `http://<device-ip>/`.
-6. Use these RTSP URLs in BirdNET-Go, BirdNET-Pi, VLC, or ffplay:
+## What works
 
-```text
-rtsp://<device-ip>:8554/audio1    Stream 1
-rtsp://<device-ip>:8554/audio2    Stream 2
-```
+- Built-in ES8311 codec and MEMS microphone
+- RTSP stream at `rtsp://<device-ip>:8554/audio1`
+- BirdNET-Go over RTSP/TCP
+- BirdNET-Pi over RTP/UDP
+- Web UI and JSON diagnostics on port 80
+- Adjustable sample rate, gain, buffer size, high-pass filter, CPU speed, and Wi-Fi power
+- Thermal protection, stream recovery, MQTT, mDNS, scheduling, and manual OTA upload
 
-If mDNS is enabled and works on your LAN, the same streams are available through the device hostname:
+The VoiceS3R implementation has been tested on real C126 hardware with BirdNET-Go. The speaker and
+NS4150B power amplifier are not used.
 
-```text
-rtsp://<device-hostname>.local:8554/audio1
-rtsp://<device-hostname>.local:8554/audio2
-```
-
-The default hostname is unique per device, for example `esp32mic-a1b2c3`.
-
-Supported XIAO boards:
-
-- [Seeed Studio XIAO ESP32-C3](https://www.seeedstudio.com/Seeed-XIAO-ESP32C3-p-5431.html)
-- [Seeed Studio XIAO ESP32-S3](https://www.seeedstudio.com/XIAO-ESP32S3-p-5627.html)
-- [Seeed Studio XIAO ESP32-C5](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html)
-- [Seeed Studio XIAO ESP32-C6](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html)
-
-Additional runtime-tested board:
+## Hardware
 
 - [M5Stack Atom VoiceS3R / EchoS3R (C126)](https://docs.m5stack.com/en/core/Atom_EchoS3R)
+- USB-C data cable
+- Stable 5 V USB power supply
+- 2.4 GHz Wi-Fi
 
-Default build notes:
+The firmware uses these built-in connections:
 
-- The web flasher detects the connected ESP chip family and selects the matching firmware.
-- Atom VoiceS3R currently uses the manual PlatformIO build described in the firmware documentation;
-  it is not included in the public web flasher or automatic OTA artifacts yet.
-- XIAO ESP32-C6 external antenna RF switch is enabled by default.
-- XIAO ESP32-C3, XIAO ESP32-S3, and XIAO ESP32-C5 use their U.FL antenna path without firmware GPIO switching.
-- OTA has no password in the default public build. Keep the device on your trusted LAN.
-- For OTA without USB, open **https://esp32mic.msmeteo.cz**, enter the device IP in the OTA section,
-  and open the device update page.
-- Automatic OTA uses a board-specific stable URL, so installed firmware always downloads the latest
-  published C3/S3/C5/C6 app image instead of rebuilding its own current-version URL.
-- For manual OTA upload, use the matching app-only file from `manual-ota-firmware/`.
+| Function | GPIO |
+|---|---:|
+| ES8311 I2C SDA | 45 |
+| ES8311 I2C SCL | 0 |
+| I2S MCLK | 11 |
+| I2S BCLK | 17 |
+| I2S word select | 3 |
+| Microphone data | 4 |
+| NS4150B amplifier control | 18, left inactive |
 
-## Wiring
+## Build and flash
 
-Tested build targets: **Seeed Studio XIAO ESP32-C3/S3/C5/C6**. Runtime hardware validation is still
-primarily on **XIAO ESP32-C6** + **ICS-43434** I2S microphone.
+Install [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html), then:
 
-The Atom VoiceS3R needs no microphone wiring. Its built-in ES8311 codec and MEMS microphone are
-initialized by the dedicated `m5stack-atom-voices3r` build target.
+```bash
+git clone https://github.com/bagdeabhishek/m5stack-atom-voices3r-birdnet-mic.git
+cd m5stack-atom-voices3r-birdnet-mic
+pio run -e m5stack-atom-voices3r
+pio run -e m5stack-atom-voices3r -t upload
+```
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/connection-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="assets/connection.png">
-  <img alt="Wiring diagram for the XIAO ESP32-C6 and ICS-43434 microphone" src="assets/connection.png">
-</picture>
+If PlatformIO cannot find the board automatically, put the VoiceS3R into download mode: hold its
+reset button for about two seconds until the internal green LED lights, then release it. After a
+successful upload, unplug USB for a few seconds and reconnect it without holding the button.
 
-Use the same physical XIAO pin labels on every supported board. The underlying GPIO numbers differ
-by chip.
+The app-only firmware binary is generated at:
 
-Firmware **v1.11 or newer is required for the C3/S3/C5 GPIO mappings below**. Versions 1.10.0 and
-1.10.1 incorrectly used the C6 GPIO mapping (`21/1/2`) in every board build. C6 was not affected.
+```text
+.pio/build/m5stack-atom-voices3r/firmware.bin
+```
 
-| Mic signal | XIAO pin label | C3 GPIO | S3 GPIO | C5 GPIO | C6 GPIO | Notes |
-|---|:--:|:--:|:--:|:--:|:--:|---|
-| **BCLK / SCK** | **D3** | 5 | 4 | 7 | 21 | I2S bit clock |
-| **LRCLK / WS** | **D1** | 3 | 2 | 0 | 1 | I2S word select |
-| **SD / DOUT** | **D2** | 4 | 3 | 25 | 2 | I2S data from microphone |
-| **MCLK / SCKI** | **D7** | 20 | 44 | 12 | 17 | Optional clock for PCM1808 ADC |
-| **VDD** | 3V3 | - | - | - | - | Power |
-| **GND** | GND | - | - | - | - | Ground |
+Keep that file for later manual OTA updates from `http://<device-ip>/ota`.
 
-**INMP441** has also been reported to work with the same I2S pins. If your board exposes `L/R` or
-`SEL`, set it to the left channel, usually GND, because the firmware reads the left I2S channel.
-See discussion #25: https://github.com/Sukecz/esp32-birdnet-mic/discussions/25
+## First boot
 
-Firmware v1.21 also outputs a 256-fs MCLK on D7 for experimental PCM1808 ADC setups. Configure the
-PCM1808 for slave I2S mode and connect the microphone path to its left input; RTSP output remains
-mono. This path is ready for hardware testing but is not yet a tested reference setup. Existing
-ICS-43434 and INMP441 installations leave D7 unconnected and require no wiring change.
+1. Connect to the temporary Wi-Fi network `ESP32-RTSP-Mic-AP`.
+2. If the captive portal does not appear, open `http://192.168.4.1`.
+3. Select your 2.4 GHz network and save its credentials.
+4. Find the device in your router's client list and reserve its IP address.
+5. Open `http://<device-ip>/` to check the microphone and stream status.
 
-## XIAO Antennas
+The default mDNS name is unique to the device, such as `esp32mic-a1b2c3.local`, but a reserved IP
+address is usually more reliable for a continuously running BirdNET source.
 
-XIAO ESP32-C6 uses an RF switch path controlled by GPIO3/GPIO14. The firmware selects the external
-antenna path by default.
+## Connect BirdNET
 
-- Use a 2.4 GHz external antenna for stable RTSP streaming.
-- XIAO ESP32-C3 and XIAO ESP32-S3 expose a U.FL antenna connector without a documented firmware GPIO
-  switch.
-- XIAO ESP32-C5 has a dedicated Wi-Fi/BT antenna connector; attach the included antenna before use.
-- Weak Wi-Fi can cause packet loss, retries, and extra heat.
-- If your hardware intentionally uses the internal antenna path, adjust or remove the GPIO3/GPIO14
-  antenna-control block in `setup()` for the C6 build.
+Use this URL as the audio source in BirdNET-Go:
 
-## Test The Stream
+```text
+rtsp://<device-ip>:8554/audio1
+```
 
-Use `/audio1` for stream 1 unless you specifically need the old `/audio` URL.
+For example:
+
+```text
+rtsp://192.168.1.100:8554/audio1
+```
+
+Test the stream independently before configuring BirdNET:
 
 ```bash
 ffplay -rtsp_transport tcp rtsp://<device-ip>:8554/audio1
 ffprobe -rtsp_transport tcp rtsp://<device-ip>:8554/audio1
 ```
 
-For VLC: *Media* -> *Open Network Stream* -> paste `rtsp://<device-ip>:8554/audio1` or
-`rtsp://<device-ip>:8554/audio2`.
+`/audio2` is available as a second independently configured stream. `/audio` remains an alias for
+`/audio1` for compatibility.
 
-If VLC/ffplay works, use the same RTSP URL in BirdNET-Go or BirdNET-Pi.
+## Recommended starting settings
 
-## What The Firmware Provides
+The firmware defaults are suitable for initial testing. For continuous BirdNET-Go use on a weak
+Wi-Fi connection, this profile is a useful starting point:
 
-- English Web UI on port **80** with live status, settings, logs, and actions.
-- JSON API for automation and monitoring.
-- Two RTSP streams: `/audio1` and `/audio2`; `/audio` is an alias for `/audio1`.
-- Configurable **1-3 concurrent RTSP sessions**; default is 2.
-- Per-stream enable/disable and BirdNET-Go / BirdNET-Pi target selection.
-- Transport selection based on target: TCP for BirdNET-Go, UDP for BirdNET-Pi.
-- Dedicated audio producer task with ring buffer between I2S capture and RTSP packet output.
-- Audio/API diagnostics for I2S errors, ring-buffer drops, and RTSP write stalls/timeouts.
-- MQTT telemetry and Home Assistant MQTT Discovery.
-- Stream schedule by local time, including overnight windows.
-- Optional deep sleep outside the stream schedule window.
-- Auto-recovery, scheduled reset, CPU frequency control.
-- Thermal protection with persistent latch and manual acknowledgement.
-- Configurable high-pass filter for low-frequency rumble.
-- mDNS hostname support and OTA support.
+| Setting | Suggested value |
+|---|---:|
+| Sample rate | 32,000 Hz |
+| Gain | 1.0 |
+| Buffer | 2,048 samples |
+| I2S shift | 0 |
+| High-pass filter | On, 250-500 Hz |
+| CPU | 160 MHz |
+| Wi-Fi TX power | Lowest value that remains stable |
+| Thermal shutdown | 80 °C |
 
-Default audio settings are 48 kHz, mono 16-bit PCM/L16, gain 1.5, and a 512-sample packet buffer.
-The 512-sample default is the balanced profile and avoids the BirdNET-Pi UDP stutter observed with
-1024-sample packets, while still working well for BirdNET-Go TCP. Firmware v1.9.3 and later improves
-BirdNET-Pi UDP compatibility by handling RTCP and RTP metadata expected by ffmpeg-based clients.
+BirdNET commonly resamples input internally, so 32 kHz reduces network and processing load without
+discarding the frequency range used by most audible bird calls. Use 48 kHz if you need more
+high-frequency bandwidth.
 
-## Recommended Hardware
+## Temperature and Wi-Fi
 
-| Part | Qty | Notes | Link |
-|---|---:|---|---|
-| Seeed Studio XIAO ESP32-C3 | 1 | Supported XIAO target board | [Seeed Studio](https://www.seeedstudio.com/Seeed-XIAO-ESP32C3-p-5431.html) |
-| Seeed Studio XIAO ESP32-S3 | 1 | Supported XIAO target board | [Seeed Studio](https://www.seeedstudio.com/XIAO-ESP32S3-p-5627.html) |
-| Seeed Studio XIAO ESP32-C5 | 1 | Supported XIAO target board | [Seeed Studio](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html) |
-| Seeed Studio XIAO ESP32-C6 | 1 | Supported XIAO target board | [Seeed Studio](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html) |
-| MEMS I2S microphone **ICS-43434** | 1 | Tested reference microphone | [AliExpress](https://www.aliexpress.com/item/1005008956861273.html) |
-| MEMS I2S microphone **INMP441** | 1 | Reported compatible with same wiring | - |
-| Shielded cable, 5+ core | Optional | I2S mic needs 5 conductors: 3V3, GND, BCLK, LRCLK/WS, and SD/DOUT. A 6-core cable is a good practical choice for spare/shield handling. | [AliExpress](https://www.aliexpress.com/item/1005010375728700.html) |
-| 5 V power supply | 1 | At least 1 A recommended. **The AliExpress page may default to 12 V; manually select the 5 V version. Never connect 12 V to the XIAO.** | [AliExpress](https://www.aliexpress.com/item/1005002624537795.html) |
-| 2.4 GHz antenna, IPEX/U.FL | Recommended | Important for stable XIAO Wi-Fi streaming | [AliExpress](https://www.aliexpress.com/item/1005005439361093.html) |
+The temperature shown in the Web UI is the ESP32-S3's internal sensor—not ambient air temperature.
+It will read significantly warmer than the room while the CPU and radio are active.
 
-Links are examples only. Verify the exact part number before buying.
+There is also an accuracy limitation in the current firmware stack: Arduino's `temperatureRead()`
+requests a 10–50 °C expected range when it initializes the ESP32-S3 sensor. Values above the
+driver-selected calibrated range should be treated as a strong overheating trend, not a
+laboratory-accurate case or ambient temperature. This does not make a 90 °C report harmless, but it
+does mean the absolute number may be off by several degrees.
 
-Power the XIAO either through USB-C with a normal USB power supply or through its 5V/VBUS input
-with a regulated 5 V supply. A higher-wattage USB-C supply is fine because the board draws only the
-current it needs. Do not connect USB-C and an external 5 V source at the same time.
+This firmware is a demanding thermal workload because it continuously captures audio, packetizes
+RTSP, keeps Wi-Fi awake with `WiFi.setSleep(false)`, and streams without idle periods. Weak Wi-Fi
+adds retransmissions and radio-on time. The tiny plastic enclosure has little airflow, so direct sun
+or a hot outdoor mounting location can push the internal reading much higher.
 
-## Practical Tips
+For reliable operation:
 
-- Keep I2S wires short; use shielded cable for longer runs.
-- Keep the microphone and I2S wires away from the ESP32 antenna/RF area.
-- Aim for Wi-Fi RSSI better than about **-75 dBm**.
-- Use DHCP reservation or fixed IP if BirdNET cannot resolve mDNS reliably.
-- Keep the device on a trusted LAN; do not expose HTTP/RTSP to the public internet.
+- Aim for RSSI better than **-70 dBm**; below roughly **-75 dBm**, improve the access-point location
+  before increasing transmit power.
+- Keep the device shaded and out of sealed, sun-heated enclosures.
+- Leave space around the case vents; do not wrap it in foam or tape.
+- Use the lowest Wi-Fi TX power that keeps the RTSP packet rate stable.
+- Keep thermal protection enabled at **80 °C**. Do not treat a higher shutdown limit as a cooling fix.
+- Use a stable 5 V supply and avoid unnecessary powered peripherals.
 
-### RF Noise / Wi-Fi TX Power
+The NS4150B speaker amplifier is held in hardware shutdown when GPIO18 is low and is not part of the
+microphone path. It is not expected to be a meaningful heat source in this firmware.
 
-If the stream is stable but the audio is noisy or distorted, try lowering **Wi-Fi TX Power** in the
-Web UI. When the access point is nearby, lower TX power can reduce RF coupling into the microphone,
-wiring, or power rails.
+## Useful diagnostics
 
-Suggested test:
+The Web UI is available at `http://<device-ip>/`. Read-only JSON endpoints include:
 
-1. Set Wi-Fi TX Power to about **11 dBm**.
-2. Watch RSSI, packet rate, reconnects, and audio quality for a few minutes.
-3. If Wi-Fi becomes unstable, raise TX power step by step.
+```text
+GET /api/status
+GET /api/audio_status
+GET /api/perf_status
+GET /api/thermal
+GET /api/logs
+```
 
-A grounded metal enclosure can help shield microphone wiring, but keep the Wi-Fi antenna outside the
-metal enclosure.
+Healthy streaming normally means:
 
-### High-Pass Filter
+- `producer_running` is `true`
+- `i2s_error_count` remains at zero
+- `/audio1` has one connected client
+- packet rate is stable for the selected sample rate and buffer size
+- RSSI is not persistently below approximately -75 dBm
 
-The firmware includes a configurable high-pass filter to reduce low-frequency rumble.
+## Updating
 
-- Default: ON at 500 Hz.
-- Typical range: 300-800 Hz.
-- Web UI: Audio -> `High-pass` and `HPF Cutoff`.
-- API: `POST /api/set` with `key=hp_enable&value=on|off` or `key=hp_cutoff&value=600`.
-- Mutating API calls require header `X-ESP32MIC-CSRF: 1`.
+Automatic OTA from the upstream project is intentionally disabled for this board because its
+generic ESP32-S3 image is not compatible with the VoiceS3R audio hardware.
 
-## Compatibility
+To update safely:
 
-- Target boards: [Seeed Studio XIAO ESP32-C3](https://www.seeedstudio.com/Seeed-XIAO-ESP32C3-p-5431.html),
-  [XIAO ESP32-S3](https://www.seeedstudio.com/XIAO-ESP32S3-p-5627.html),
-  [XIAO ESP32-C5](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C5-p-6609.html), and
-  [XIAO ESP32-C6](https://www.seeedstudio.com/Seeed-Studio-XIAO-ESP32C6-p-5884.html).
-- Web flasher auto-selects firmware by ESP chip family. It cannot distinguish board variants that
-  share the same chip family.
-- Reference microphone: ICS-43434.
-- Reported compatible microphone: INMP441 with the same I2S wiring.
-- Other ESP32 boards or I2S microphones may work, but may need pin or I2S format changes.
+1. Pull and rebuild the `m5stack-atom-voices3r` environment.
+2. Open `http://<device-ip>/ota`.
+3. Upload `.pio/build/m5stack-atom-voices3r/firmware.bin`.
+4. Confirm the board ID is `m5stack-atom-voices3r` after reboot.
 
-## Arduino IDE Build Size
+Most runtime settings are stored in NVS and normally survive firmware restarts and OTA updates.
+Keep a USB cable available in case a development build requires recovery.
 
-Firmware v1.9.2 and later includes `esp32-birdnet-mic/build_opt.h`, which the ESP32 Arduino core loads
-automatically in Arduino IDE and `arduino-cli`. It disables unused C++ exception/unwind metadata and
-keeps the tight XIAO ESP32-C3/C6 default 1.2 MB app partitions below the limit without removing
-firmware features.
+## Troubleshooting
 
-## More Documentation
+### BirdNET receives no audio
 
-- Firmware details, build instructions, API notes: `esp32-birdnet-mic/README.md`
-- Manual OTA firmware: `manual-ota-firmware/README.md`
-- Web flasher notes: `web-flasher/README.md`
-- Firmware changes: `esp32-birdnet-mic/CHANGELOG.md`
+- Confirm `ffplay` can open `/audio1`.
+- Check that stream 1 is enabled and has a connected client.
+- Verify `producer_running=true` and `i2s_error_count=0` in `/api/audio_status`.
+- Confirm the startup log reports pins `11/17/3/4` and ES8311 address `0x18`.
+- Do not flash the upstream generic ESP32-S3 binary; it does not initialize this board's codec.
 
-## License
+### Reconnects or low packet rate
 
-This project is released under the MIT License. See `LICENSE`.
+- Improve Wi-Fi first. Moving the access point is usually more effective than maximum TX power.
+- Reserve the device IP and use it instead of mDNS.
+- Try the 32 kHz / 2,048-sample profile above.
+- Check `/api/logs` for `RTP write failed`, I2S resets, or thermal shutdown.
+
+### Device is hot
+
+- Compare the internal reading with the local ambient temperature; they are not the same quantity.
+- Check RSSI and stream retries.
+- Move the board into shade with free airflow.
+- Restore the thermal cutoff to 80 °C if it was raised.
+- If the case itself becomes painful to touch, smells hot, or the device behaves erratically,
+  disconnect power and inspect the supply and board before continuing.
+
+## Project layout
+
+- `esp32-birdnet-mic/` — firmware and detailed upstream-oriented reference documentation
+- `platformio.ini` — tested VoiceS3R build environment
+- `boards/m5stack-atoms3r.json` — PlatformIO board definition
+- `.github/workflows/arduino-build.yml` — compile validation
+
+## Credits and license
+
+VoiceS3R support was developed from the
+[`feature/m5stack-atom-voices3r`](https://github.com/Sukecz/esp32-birdnet-mic/pull/57) work on top of
+the original [ESP32 BirdNET microphone firmware](https://github.com/Sukecz/esp32-birdnet-mic) by
+Sukecz and its contributors.
+
+Released under the [MIT License](LICENSE).

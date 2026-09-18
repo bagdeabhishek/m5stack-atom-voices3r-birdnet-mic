@@ -2,7 +2,12 @@
   <img src="../assets/birdlogo.png" alt="ESP32 RTSP Mic for BirdNET-Go / BirdNET-Pi" width="240" />
 </p>
 
-# birdnet-esp32-rtsp-mic Firmware
+# M5Stack Atom VoiceS3R BirdNET firmware reference
+
+> This repository is maintained as a dedicated M5Stack Atom VoiceS3R / EchoS3R (C126) fork. Start
+> with the [project README](../README.md) for the supported build, flashing, BirdNET setup, thermal
+> guidance, and troubleshooting. The sections below retain the broader upstream firmware reference
+> because the VoiceS3R port shares its Web UI, RTSP server, API, and reliability features.
 
 Arduino firmware for ESP32 I2S microphones that serve **mono 16-bit PCM/L16** audio over **RTSP**
 for **BirdNET-Go** and **BirdNET-Pi**. It also provides a Web UI, JSON API, MQTT telemetry, and Home
@@ -15,7 +20,7 @@ Assistant MQTT Discovery.
 - Reference microphone: **ICS-43434**; **INMP441** has been reported compatible with the same wiring
 - User-facing overview and wiring: `../README.md`
 - Changelog: `CHANGELOG.md`
-- Web flasher: **https://esp32mic.msmeteo.cz**
+- Web flasher: upstream XIAO builds only; **do not use it for the VoiceS3R**
 - Manual OTA firmware: `../manual-ota-firmware/firmware-app-<board>.bin` (`firmware-app.bin` remains the C6 alias)
 - License: MIT (`../LICENSE`)
 
@@ -232,9 +237,9 @@ GPIO3/GPIO14 block in `setup()`.
 - Audio format: mono 16-bit PCM/L16
 - Gain: 1.5
 - Buffer: 512 samples
-- I2S shift: 12 bits
+- I2S shift: 0 bits on VoiceS3R; 12 bits on the upstream digital-microphone targets
 - High-pass filter: ON, 500 Hz
-- Wi-Fi TX power: about 19.5 dBm
+- Wi-Fi TX power: 15 dBm
 - CPU: 160 MHz
 - Thermal shutdown: 80 C, protection ON
 - Max RTSP clients: 2
@@ -563,7 +568,8 @@ Current validation ranges include `sampleRate=8000..192000` and `bufferSize=256.
 
 ## Credits
 
-- Author: **@Sukecz**
+- Original firmware: **@Sukecz** and upstream contributors
+- M5Stack Atom VoiceS3R port: **@bagdeabhishek**
 
 ## License
 
