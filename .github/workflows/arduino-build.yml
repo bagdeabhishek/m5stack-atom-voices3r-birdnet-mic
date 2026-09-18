@@ -1,58 +1,11 @@
-name: arduino-build
+name: VoiceS3R build
 
 on:
   push:
   pull_request:
 
 jobs:
-  ota-contract:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Validate OTA release contract
-        run: python3 tests/validate_ota_contract.py
-
-  compile:
-    needs: ota-contract
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: XIAO ESP32-C3
-            fqbn: esp32:esp32:XIAO_ESP32C3
-          - name: XIAO ESP32-S3
-            fqbn: esp32:esp32:XIAO_ESP32S3
-          - name: XIAO ESP32-C5
-            fqbn: esp32:esp32:XIAO_ESP32C5
-          - name: XIAO ESP32-C6
-            fqbn: esp32:esp32:XIAO_ESP32C6
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Arduino CLI
-        uses: arduino/setup-arduino-cli@v2
-
-      - name: Install ESP32 platform
-        run: |
-          arduino-cli config init
-          arduino-cli core update-index
-          arduino-cli core install esp32:esp32
-
-      - name: Install Arduino libraries
-        run: |
-          arduino-cli lib install WiFiManager
-          arduino-cli lib install PubSubClient
-
-      - name: Compile ${{ matrix.name }}
-        run: |
-          arduino-cli compile --fqbn "${{ matrix.fqbn }}" esp32-birdnet-mic
-
-  compile-voices3r:
-    needs: ota-contract
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -68,3 +21,10 @@ jobs:
 
       - name: Compile M5Stack Atom VoiceS3R
         run: pio run -e m5stack-atom-voices3r
+
+      - name: Publish firmware binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: m5stack-atom-voices3r-firmware
+          path: .pio/build/m5stack-atom-voices3r/firmware.bin
+          if-no-files-found: error
