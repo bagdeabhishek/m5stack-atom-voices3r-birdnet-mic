@@ -22,6 +22,7 @@ No external microphone, soldering, or I2S wiring is required.
 - BirdNET-Go over RTSP/TCP
 - BirdNET-Pi over RTP/UDP
 - Web UI and JSON diagnostics on port 80
+- Browser-based Tailscale enrollment for access across different networks
 - Adjustable sample rate, gain, buffer size, high-pass filter, CPU speed, and Wi-Fi power
 - Thermal protection, stream recovery, MQTT, mDNS, scheduling, and manual OTA upload
 
@@ -52,10 +53,16 @@ The firmware uses these built-in connections:
 Install [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html), then:
 
 ```bash
-git clone https://github.com/bagdeabhishek/m5stack-atom-voices3r-birdnet-mic.git
+git clone --recurse-submodules https://github.com/bagdeabhishek/m5stack-atom-voices3r-birdnet-mic.git
 cd m5stack-atom-voices3r-birdnet-mic
 pio run -e m5stack-atom-voices3r
 pio run -e m5stack-atom-voices3r -t upload
+```
+
+For an existing checkout, fetch the networking component once with:
+
+```bash
+git submodule update --init --recursive
 ```
 
 If PlatformIO cannot find the board automatically, put the VoiceS3R into download mode: hold its
@@ -104,6 +111,27 @@ ffprobe -rtsp_transport tcp rtsp://<device-ip>:8554/audio1
 
 `/audio2` is available as a second independently configured stream. `/audio` remains an alias for
 `/audio1` for compatibility.
+
+## Access from another network with Tailscale
+
+The microphone can join your tailnet directly, so BirdNET-Go does not need to
+share its physical network:
+
+1. Complete normal Wi-Fi setup and open `http://<lan-ip>/tailscale`.
+2. Select **Authorize with Tailscale** and approve `birdnet-mic` in your browser.
+3. Wait for the page to show `CONNECTED` and a stable `100.x.y.z` address.
+4. Configure BirdNET-Go with `rtsp://<tailnet-ip>:8554/audio1`.
+
+The device identity is stored in NVS. It survives ordinary reboots, OTA
+updates, Wi-Fi changes, and BirdNET settings resets without embedding an auth
+key in the firmware. It is removed only by the separately confirmed **Clear
+Tailscale identity** action on the Tailscale page; that action preserves Wi-Fi
+and BirdNET settings. For an unattended microphone, disable node-key expiry in
+the Tailscale admin console.
+
+LAN access remains available as a fallback. The reusable networking component
+and its Arduino and native ESP-IDF examples live in
+[`bagdeabhishek/esp32-tailnet`](https://github.com/bagdeabhishek/esp32-tailnet).
 
 ## Recommended starting settings
 
@@ -159,6 +187,7 @@ The Web UI is available at `http://<device-ip>/`. Read-only JSON endpoints inclu
 
 ```text
 GET /api/status
+GET /api/tailnet
 GET /api/audio_status
 GET /api/perf_status
 GET /api/thermal
@@ -181,6 +210,7 @@ generic ESP32-S3 image is not compatible with the VoiceS3R audio hardware.
 To update safely:
 
 1. Pull and rebuild the `m5stack-atom-voices3r` environment.
+   Run `git submodule update --init --recursive` after pulling.
 2. Open `http://<device-ip>/ota`.
 3. Upload `.pio/build/m5stack-atom-voices3r/firmware.bin`.
 4. Confirm the board ID is `m5stack-atom-voices3r` after reboot.
@@ -217,6 +247,7 @@ Keep a USB cable available in case a development build requires recovery.
 ## Project layout
 
 - `esp32-birdnet-mic/` — firmware and detailed upstream-oriented reference documentation
+- `external/esp32-tailnet/` — reusable networking component (Git submodule)
 - `platformio.ini` — tested VoiceS3R build environment
 - `boards/m5stack-atoms3r.json` — PlatformIO board definition
 - `.github/workflows/arduino-build.yml` — compile validation

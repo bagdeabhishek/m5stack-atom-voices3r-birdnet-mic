@@ -30,6 +30,7 @@ Web UI:
 
 ```text
 http://<device-ip>/
+http://<lan-ip>/tailscale    Tailnet authorization and identity management
 ```
 
 RTSP streams:
@@ -48,6 +49,10 @@ rtsp://<device-hostname>.local:8554/audio2
 
 The API and Web UI publish `/audio1` and `/audio2`. Use `/audio1` in new configurations. `/audio`
 remains available only as a compatibility alias for stream 1.
+
+After browser authorization at `/tailscale`, `<device-ip>` may be the stable
+Tailnet `100.x.y.z` address. The persisted identity survives reboot, OTA, and
+uplink changes until **Clear Tailscale identity** is explicitly confirmed.
 
 ## First Boot
 

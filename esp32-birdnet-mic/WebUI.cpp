@@ -9,8 +9,12 @@
 #include <WebServer.h>
 #include <WiFiManager.h>
 #include <ESPmDNS.h>
+#include <ESP32Tailnet.h>
 #include "WebUI.h"
 #include "WebUI_gz.h"
+
+extern IPAddress serviceIP();
+extern ESP32Tailnet tailnet;
 
 // External variables and functions from main (.ino) – ESP32 RTSP Mic for BirdNET-Go / BirdNET-Pi
 extern WiFiServer rtspServer;
@@ -257,6 +261,59 @@ static void httpIndex() {
     );
 }
 
+static void httpTailnetStatus() {
+    esp32_tailnet_status_t status{};
+    const bool available = tailnet.status(status);
+    String json;
+    json.reserve(640);
+    json += F("{\"available\":");
+    json += available ? F("true") : F("false");
+    json += F(",\"state\":\"");
+    json += jsonEscape(String(esp32_tailnet_state_name(status.state)));
+    json += F("\",\"connected\":");
+    json += status.connected ? F("true") : F("false");
+    json += F(",\"vpn_ip\":\"");
+    if (status.connected) json += tailnet.localIP().toString();
+    json += F("\",\"auth_url\":\"");
+    json += jsonEscape(String(status.auth_url));
+    json += F("\",\"identity_persistent\":");
+    json += status.identity_persistent ? F("true") : F("false");
+    json += F(",\"peers_total\":");
+    json += String(status.peers_total);
+    json += F(",\"peers_online\":");
+    json += String(status.peers_online);
+    json += F(",\"derp_region\":");
+    json += String(status.derp_region);
+    json += F("}");
+    apiSendJSON(json);
+}
+
+static void httpTailnetClearIdentity() {
+    if (!requireMutationAuth()) return;
+
+    webui_pushLog(F("UI action: clear Tailscale identity"));
+    apiSendJSON(F("{\"ok\":true,\"rebooting\":true}"));
+    delay(100);
+    tailnet.end();
+    if (!ESP32Tailnet::clearStoredIdentity()) {
+        webui_pushLog(F("Tailscale identity clear failed; rebooting with existing identity"));
+    }
+    scheduleReboot(false, 300);
+}
+
+static void httpTailnetPage() {
+    static const char PAGE[] PROGMEM = R"HTML(<!doctype html><html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><title>Tailscale setup</title>
+<style>:root{--bg:#07101f;--fg:#e8eefc;--muted:#a7b3cb;--card:#111a2c;--border:#26344f;--acc:#0ea5e9;--ok:#10b981;--warn:#f59e0b;--danger:#ef4444}*{box-sizing:border-box}body{margin:0;background:radial-gradient(900px 600px at 10% -10%,rgba(14,165,233,.20),transparent),var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:720px;margin:auto;padding:24px 14px}.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px}h1{margin:0 0 8px}.muted{color:var(--muted);line-height:1.5}.grid{display:grid;grid-template-columns:11rem 1fr;gap:10px;margin:18px 0}.v{font-weight:750;overflow-wrap:anywhere}.btn{display:inline-block;padding:11px 14px;border-radius:12px;border:1px solid var(--border);background:linear-gradient(120deg,var(--acc),var(--ok));color:#062c32;font-weight:850;text-decoration:none;cursor:pointer}.secondary{background:transparent;color:var(--fg)}.danger{background:transparent;border-color:var(--danger);color:#fca5a5}.ok{color:var(--ok)}.warn{color:var(--warn)}code{word-break:break-all}@media(max-width:520px){.grid{grid-template-columns:1fr}.grid .muted{margin-top:6px}}</style></head><body><div class="wrap">
+<div class="card"><h1>Tailscale setup</h1><p class="muted">Authorize this microphone once. Its identity survives reboots, firmware updates, and Wi-Fi changes; no auth key is compiled into the firmware.</p><a class="btn secondary" href="/">Back to microphone</a></div>
+<div class="card"><div class="grid"><span class="muted">State</span><span class="v" id="state">Loading…</span><span class="muted">Tailnet IP</span><code class="v" id="ip">—</code><span class="muted">Peers</span><span class="v" id="peers">—</span></div><div id="action"><p class="muted">Contacting the Tailscale control plane…</p></div></div>
+<div class="card"><p class="muted">After authorization, disable key expiry for this node in the Tailscale admin console so an unattended microphone stays enrolled.</p><button class="btn danger" id="clear" type="button" hidden>Clear Tailscale identity</button></div></div>
+<script>const s=document.getElementById('state'),ip=document.getElementById('ip'),peers=document.getElementById('peers'),action=document.getElementById('action'),clear=document.getElementById('clear');function paint(j){s.textContent=j.state||'unavailable';s.className='v '+(j.connected?'ok':j.auth_url?'warn':'');ip.textContent=j.vpn_ip||'—';peers.textContent=(j.peers_online||0)+' online / '+(j.peers_total||0)+' known';clear.hidden=!j.identity_persistent;action.replaceChildren();if(j.connected){const p=document.createElement('p');p.className='ok';p.textContent='Connected. BirdNET HTTP and RTSP are now reachable through the tailnet IP.';action.appendChild(p);}else if(j.auth_url){const p=document.createElement('p');p.className='muted';p.textContent='Tailscale is waiting for you to approve this node.';const a=document.createElement('a');a.className='btn';a.target='_blank';a.rel='noopener';a.href=j.auth_url;a.textContent='Authorize with Tailscale';action.append(p,a);}else{const p=document.createElement('p');p.className='muted';p.textContent='Requesting an authorization link. This page refreshes automatically.';action.appendChild(p);}}clear.onclick=async()=>{if(!confirm('Remove this microphone from its tailnet? It will reboot and require authorization again. Wi-Fi and BirdNET settings will be kept.'))return;clear.disabled=true;try{const r=await fetch('/api/tailnet/clear',{method:'POST',headers:{'X-ESP32MIC-CSRF':'1'}});if(!r.ok)throw Error('request failed');action.textContent='Identity cleared. Rebooting…';}catch(e){clear.disabled=false;alert('Could not clear the Tailscale identity.');}};function poll(){fetch('/api/tailnet',{cache:'no-store'}).then(r=>r.json()).then(paint).catch(()=>{s.textContent='temporarily unavailable'}).finally(()=>setTimeout(poll,2500));}poll();</script></body></html>)HTML";
+    web.sendHeader("Cache-Control", "no-store");
+    web.send_P(200, PSTR("text/html; charset=utf-8"), PAGE);
+}
+
 // HTTP handlery
 
 static String htmlEscape(const String &s) {
@@ -274,7 +331,7 @@ static String htmlEscape(const String &s) {
 }
 
 static void sendOtaPage(const String &message = String(), bool ok = true) {
-    String deviceUrl = "http://" + WiFi.localIP().toString() + "/ota";
+    String deviceUrl = "http://" + serviceIP().toString() + "/ota";
     String defaultOtaUrl = getDefaultOtaUrl();
     bool versionChecked = false;
     bool versionChecking = false;
@@ -835,11 +892,12 @@ static void httpStatus() {
     json += "\"chip_family\":\"" + jsonEscape(String(FW_CHIP_FAMILY_STR)) + "\",";
     json += "\"ota_artifact\":\"" + jsonEscape(String(FW_OTA_ARTIFACT_STR)) + "\",";
     json += "\"ota_auto_supported\":" + String(FW_OTA_ARTIFACT_STR[0] ? "true" : "false") + ",";
-    json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
-    json += "\"stream_url_ip\":\"rtsp://" + WiFi.localIP().toString() + ":8554/audio1\",";
+    json += "\"ip\":\"" + serviceIP().toString() + "\",";
+    json += "\"lan_ip\":\"" + WiFi.localIP().toString() + "\",";
+    json += "\"stream_url_ip\":\"rtsp://" + serviceIP().toString() + ":8554/audio1\",";
     json += "\"stream_url_mdns\":\"rtsp://" + mdnsHostname + ".local:8554/audio1\",";
-    json += "\"stream1_url_ip\":\"rtsp://" + WiFi.localIP().toString() + ":8554/audio1\",";
-    json += "\"stream2_url_ip\":\"rtsp://" + WiFi.localIP().toString() + ":8554/audio2\",";
+    json += "\"stream1_url_ip\":\"rtsp://" + serviceIP().toString() + ":8554/audio1\",";
+    json += "\"stream2_url_ip\":\"rtsp://" + serviceIP().toString() + ":8554/audio2\",";
     json += "\"stream1_url_mdns\":\"rtsp://" + mdnsHostname + ".local:8554/audio1\",";
     json += "\"stream2_url_mdns\":\"rtsp://" + mdnsHostname + ".local:8554/audio2\",";
     json += "\"stream1_target\":" + String((uint32_t)streamProfiles[0].target) + ",";
@@ -1531,11 +1589,14 @@ static void httpActionFactoryReset(){
 
 void webui_begin() {
     web.on("/", httpIndex);
+    web.on("/tailscale", HTTP_GET, httpTailnetPage);
     web.on("/ota", HTTP_GET, httpOtaPage);
     web.on("/ota/install", HTTP_POST, httpOtaInstall);
     web.on("/ota/upload", HTTP_POST, httpOtaUploadDone, httpOtaUploadChunk);
     web.on("/api/ota_status", HTTP_GET, httpOtaStatus);
     web.on("/api/status", httpStatus);
+    web.on("/api/tailnet", HTTP_GET, httpTailnetStatus);
+    web.on("/api/tailnet/clear", HTTP_POST, httpTailnetClearIdentity);
     web.on("/api/audio_status", httpAudioStatus);
     web.on("/api/perf_status", httpPerfStatus);
     web.on("/api/thermal", httpThermal);

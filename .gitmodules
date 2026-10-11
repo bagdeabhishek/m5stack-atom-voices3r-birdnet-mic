@@ -1,0 +1,3 @@
+[submodule "external/esp32-tailnet"]
+	path = external/esp32-tailnet
+	url = https://github.com/bagdeabhishek/esp32-tailnet.git
